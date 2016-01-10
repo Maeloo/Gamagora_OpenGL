@@ -192,9 +192,6 @@ float data[16] =
 	-0.5, 0.5, 0, 1
 };
 
-
-std::list<Triangle> readObj ( const char * filename, glm::vec3 t, glm::vec3 s, float angle, glm::vec3 axe );
-
 GLuint _meshSize;
 void init ( ) {
 	// Build our program and an empty VAO
@@ -202,8 +199,8 @@ void init ( ) {
 
 	const int sizeByTriangle = 12;
 
-	//Mesh mesh = Mesh::loadOFF ( "max.off" );
-	Mesh mesh = Mesh::loadOBJ ( "girl.obj" );
+	Mesh mesh = Mesh::loadOFF ( "max.off", false );
+	//Mesh mesh = Mesh::loadOBJ ( "zerg.obj", false );
 
 	mesh.rotate ( M_PI / 2, Vector3 ( 1.0f, .0f, .0f ) );
 	

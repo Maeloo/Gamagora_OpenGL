@@ -56,8 +56,8 @@ public:
 	Mesh ( );
 	~Mesh ( );
 
-	static Mesh loadOBJ ( const std::string &fileName );
-	static Mesh loadOFF ( const std::string &fileName );
+	static Mesh loadOBJ ( const std::string &fileName, bool calculateNormalVertex );
+	static Mesh loadOFF ( const std::string &fileName, bool calculateNormalVertex );
 	static void saveOFF ( const std::string &fileName, const Mesh &mesh );
 
 	Triangle getTriangle ( const Face &face );

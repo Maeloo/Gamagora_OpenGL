@@ -9,7 +9,7 @@ Mesh::~Mesh ( ) {
 }
 
 // Charge un fichier OBJ
-Mesh Mesh::loadOBJ ( const std::string &fileName ) {
+Mesh Mesh::loadOBJ ( const std::string &fileName, bool calculateNormalVertex ) {
 	Mesh mesh = Mesh ( );
 
 	FILE * file = fopen ( fileName.c_str ( ), "r" );
@@ -142,7 +142,9 @@ Mesh Mesh::loadOBJ ( const std::string &fileName ) {
 			Vector3 normal = glm::normalize ( glm::cross ( mesh._vertices[face._vertexIndices[1]] - mesh._vertices[face._vertexIndices[0]], mesh._vertices[face._vertexIndices[2]] - mesh._vertices[face._vertexIndices[0]] ) );
 			mesh._normalsF[k] = normal;
 		}
+	}	
 
+	if ( calculateNormalVertex ) {
 		// Calcule des normales par vertex
 		std::cout << "Calculate vertex normals...\n";
 		mesh._normalsV = std::vector<Vector3> ( mesh._verticesCount );
@@ -161,7 +163,7 @@ Mesh Mesh::loadOBJ ( const std::string &fileName ) {
 
 			mesh._normalsV[idx] = glm::normalize ( normal );
 		}
-	}	
+	}
 
 	//buildEdges ( mesh );
 
@@ -199,7 +201,7 @@ void Mesh::saveOFF ( const std::string &fileName, const Mesh &mesh ) {
 }
 
 // Charge un fichier .OFF
-Mesh Mesh::loadOFF ( const std::string &fileName ) {
+Mesh Mesh::loadOFF ( const std::string &fileName, bool calculateNormalVertex ) {
 	std::cout << "Loading file...\n";
 
 	// Ouverture du fichier dans un stream
@@ -258,25 +260,27 @@ Mesh Mesh::loadOFF ( const std::string &fileName ) {
 		mesh._normalsF[k] = normal;
 	}
 
-	// Calcule des normales par vertex
-	std::cout << "Calculate vertex normals...\n";
-	mesh._normalsV = std::vector<Vector3> ( mesh._verticesCount );
-	for ( uint32_t idx = 0; idx < mesh._verticesCount; ++idx ) {
-		Vector3 normal = { .0f, .0f, .0f };
+	if ( calculateNormalVertex ) {
+		// Calcule des normales par vertex
+		std::cout << "Calculate vertex normals...\n";
+		mesh._normalsV = std::vector<Vector3> ( mesh._verticesCount );
+		for ( uint32_t idx = 0; idx < mesh._verticesCount; ++idx ) {
+			Vector3 normal = { .0f, .0f, .0f };
 
-		for ( uint32_t m = 0; m < mesh._facesCount; ++m ) {
-			Face face = mesh._faces[m];
+			for ( uint32_t m = 0; m < mesh._facesCount; ++m ) {
+				Face face = mesh._faces[m];
 
-			for ( uint32_t n = 0; n < face._verticesCount; ++n ) {
-				if ( face._vertexIndices[n] == idx ) {
-					normal += mesh._normalsF[m];
+				for ( uint32_t n = 0; n < face._verticesCount; ++n ) {
+					if ( face._vertexIndices[n] == idx ) {
+						normal += mesh._normalsF[m];
+					}
 				}
 			}
-		}
-		
-		mesh._normalsV[idx] = glm::normalize ( normal );
-	}
 
+			mesh._normalsV[idx] = glm::normalize ( normal );
+		}
+	}
+	
 	//buildEdges ( mesh );
 
 	return mesh;
