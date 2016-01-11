@@ -21,8 +21,7 @@ void main()
 	vec3 l = normalize( LightDirection_cameraspace );
 
 	float cosTheta = clamp(dot(n,l),0,1);
-	color_out = 10 * vec4(color * cosTheta, 1) / (distance*distance);;
-	
+	color_out =  normal;//10 * vec4(color * cosTheta, 1) / (distance*distance);
 	
 	//color_out = vec4(color, 1);
 }

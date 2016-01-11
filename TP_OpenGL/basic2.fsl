@@ -1,0 +1,17 @@
+#version 430
+
+layout (location=3) uniform vec3 color;
+layout (location=4) uniform vec3 light;
+
+out vec4 color_out;
+
+in vec3 normal;
+in float distance;
+
+void main() {
+	vec3 n = normalize(normal);
+	vec3 l = normalize(light);
+
+	float cosTheta = clamp(dot(n,l), 0, 1);
+	color_out = vec4(normal,1);//10 * vec4(color * cosTheta, 1) / (distance * distance);
+}

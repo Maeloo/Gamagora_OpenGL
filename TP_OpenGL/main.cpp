@@ -201,17 +201,17 @@ GLuint _meshSize;
 Vector3 _lightpos;
 void init ( ) {
 	// Build our program and an empty VAO
-	gs.program = buildProgram ( "basic.vsl", "basic.fsl" );
+	gs.program = buildProgram ( "basic2.vsl", "basic2.fsl" );
 
 	const int sizeByTriangle = 12;
 
-	//Mesh mesh = Mesh::loadOFF ( "max.off", false );
-	Mesh mesh = Mesh::loadOBJ ( "suzanne.obj", false );
+	//Mesh mesh = Mesh::loadOFF ( "buddha.off", false );
+	Mesh mesh = Mesh::loadOBJ ( "stormtrooper.obj", false );
 
 	//mesh.rotate ( M_PI / 2, Vector3 ( 1.0f, .0f, .0f ) );
 	mesh.scale ( Vector3 ( 3.0f, 3.0f, 3.0f ) );
 	
-	_meshSize = ( mesh._facesCount ) * sizeByTriangle;
+	_meshSize = ( mesh._verticesCount );// * sizeByTriangle;
 
 	std::cout << "Initializing data...\n";
 
@@ -240,15 +240,16 @@ void init ( ) {
 	// Init vertex buffer
 	glGenBuffers ( 1, &gs.vertexBuffer );
 	glBindBuffer ( GL_ARRAY_BUFFER, gs.vertexBuffer );
-	glBufferData ( GL_ARRAY_BUFFER, _meshSize * sizeof ( float ), data, GL_STATIC_DRAW );
-	glBindBuffer ( GL_ARRAY_BUFFER, 0 );
+	glBufferData ( GL_ARRAY_BUFFER, mesh._vertices.size() * sizeof ( Vector3 ), &mesh._vertices[0], GL_STATIC_DRAW );
+	//glBufferData ( GL_ARRAY_BUFFER, _meshSize * sizeof ( float ), data, GL_STATIC_DRAW );
+	//glBindBuffer ( GL_ARRAY_BUFFER, 0 );
 
 	glCreateVertexArrays ( 1, &gs.vao );
 	glBindVertexArray ( gs.vao );
 	
 	glBindBuffer ( GL_ARRAY_BUFFER, gs.vertexBuffer );
 	glEnableVertexArrayAttrib ( gs.vao, 1 );
-	glVertexAttribPointer ( 1, 4, GL_FLOAT, GL_FALSE, 16, 0 );
+	glVertexAttribPointer ( 1, 3, GL_FLOAT, GL_FALSE, 0, 0 );
 	
 	glBindBuffer ( GL_ARRAY_BUFFER, 0 );	
 	glBindVertexArray ( 0 );
@@ -264,18 +265,19 @@ void init ( ) {
 		data2[i]	 = tmp2.x;
 		data2[i + 1] = tmp2.y;
 		data2[i + 2] = tmp2.z;
+
+		//std::cout << data2[i] << " " << data2[i+1] << " " << data2[i+2] << std::endl;
 	}
 
-	GLuint normalbuffer;
-	glGenBuffers ( 1, &normalbuffer );
-	glBindBuffer ( GL_ARRAY_BUFFER, normalbuffer );
-	glBufferData ( GL_ARRAY_BUFFER, mesh._normalsF.size ( ) * 3 * sizeof ( Vector3 ), data2, GL_STATIC_DRAW );
-	glEnableVertexAttribArray ( 2 );
-	glBindBuffer ( GL_ARRAY_BUFFER, normalbuffer );
-	glVertexAttribPointer ( 2, 3, GL_FLOAT, GL_FALSE, 12, 0 );
-
+	glGenBuffers ( 1, &gs.normalBuffer );
+	glBindBuffer ( GL_ARRAY_BUFFER, gs.normalBuffer );
+	glBufferData ( GL_ARRAY_BUFFER, mesh._normalsF.size ( ) * sizeof ( Vector3 ), &mesh._normalsF[0], GL_STATIC_DRAW );
 	glBindBuffer ( GL_ARRAY_BUFFER, 0 );
-	glBindVertexArray ( 0 );
+
+	glBindBuffer ( GL_ARRAY_BUFFER, gs.normalBuffer );
+	glEnableVertexArrayAttrib ( gs.vao, 2 );
+	glVertexAttribPointer ( 2, 3, GL_FLOAT, GL_FALSE, 0, ( void* ) 0 );
+	glBindBuffer ( GL_ARRAY_BUFFER, 0 );
 
 	_lightpos = Vector3 ( 1, 2, 1 );
 }
@@ -312,14 +314,6 @@ void render ( GLFWwindow* window ) {
 	// Projection 
 	glm::mat4 projection;
 	projection = glm::perspective ( 45.0f, ( GLfloat ) width / ( GLfloat ) height, 0.1f, 100.0f );
-
-	// Camera position
-	GLfloat mdl[16];
-	float camera_org[3];
-	glGetFloatv ( GL_MODELVIEW_MATRIX, mdl );
-	camera_org[0] = -( mdl[0] * mdl[12] + mdl[1] * mdl[13] + mdl[2] * mdl[14] );
-	camera_org[1] = -( mdl[4] * mdl[12] + mdl[5] * mdl[13] + mdl[6] * mdl[14] );
-	camera_org[2] = -( mdl[8] * mdl[12] + mdl[9] * mdl[13] + mdl[10] * mdl[14] );
 	
 	// Get the uniform locations
 	GLint modelLoc = glGetUniformLocation ( gs.program, "model" );
@@ -335,10 +329,8 @@ void render ( GLFWwindow* window ) {
 
 	glProgramUniform3f ( gs.program, 3, r, g, b );
 	glProgramUniform3f ( gs.program, 4, _lightpos.x, _lightpos.y, _lightpos.z );
-	glProgramUniform3f ( gs.program, 5, camera_org[0], camera_org[1], camera_org[2] );
 	glBindVertexArray ( gs.vao );
 	{		
-		//glDrawArrays ( GL_TRIANGLE_FAN, 0, 4 );
 		glDrawArrays ( GL_TRIANGLES, 0, _meshSize );
 	}
 

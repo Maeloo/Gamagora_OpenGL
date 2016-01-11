@@ -35,7 +35,7 @@ void main()
 	LightDirection_cameraspace = LightPosition_cameraspace + EyeDirection_cameraspace;
 
 	// Normal of the the vertex, in camera space
-	vec3 Normal_cameraspace = ( view * model * vec4(normal_in,0)).xyz; // Only correct if ModelMatrix does not scale the model ! Use its inverse transpose if not.
+	vec3 Normal_cameraspace = (view * model * vec4(normal_in,0)).xyz; // Only correct if ModelMatrix does not scale the model ! Use its inverse transpose if not.
 
 	if(dot(cam, normal_in) > 0)
 	{
