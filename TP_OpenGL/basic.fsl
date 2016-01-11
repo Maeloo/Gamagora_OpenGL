@@ -1,27 +1,19 @@
 #version 430
 
 layout (location=3) uniform vec3 color;
-layout (location=4) uniform vec3 light;
 
 out vec4 color_out;
 
-in vec3 normal;
+in vec3 normal_cameraspace;
+in vec3 light_direction;
 in float distance;
 
-in vec3 EyeDirection_cameraspace;
-in vec3 Position_worldspace;
-in vec3 LightDirection_cameraspace;
+void main() {
+	vec3 n = normalize(normal_cameraspace);
+	vec3 l = normalize(light_direction);
 
-void main()
-{
-	// Normal of the computed fragment, in camera space
-	vec3 n = normalize( normal );
-	
-	// Direction of the light (from the fragment to the light)
-	vec3 l = normalize( LightDirection_cameraspace );
+	float cosTheta = clamp(dot(n,l), 0, 1);
 
-	float cosTheta = clamp(dot(n,l),0,1);
-	color_out =  normal;//10 * vec4(color * cosTheta, 1) / (distance*distance);
-	
-	//color_out = vec4(color, 1);
+	//color_out = vec4(n,1);
+	color_out = 10 * vec4(color * cosTheta, 1) / (distance * distance);
 }

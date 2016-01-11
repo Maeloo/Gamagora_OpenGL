@@ -183,124 +183,116 @@ GLuint buildProgram ( const std::string vertexFile, const std::string fragmentFi
 
 // Store the global state of your program
 struct {
+	GLuint program; // a shader
+
+	GLuint vao; // a vertex array object
 	GLuint vertexBuffer;
 	GLuint normalBuffer;
-	GLuint program; // a shader
-	GLuint vao; // a vertex array object
+
+	GLuint vao_ground; // a vertex array object
+	GLuint vertexBuffer_ground;
+	GLuint normalBuffer_ground;
 } gs;
 
-float data[16] =
-{
-	-0.5, -0.5, 0, 1,
-	0.5, -0.5, 0, 1,
-	0.5, 0.5, 0, 1,
-	-0.5, 0.5, 0, 1
-};
-
 GLuint _meshSize;
+GLuint _groundSize;
 Vector3 _lightpos;
 void init ( ) {
 	// Build our program and an empty VAO
-	gs.program = buildProgram ( "basic2.vsl", "basic2.fsl" );
-
-	const int sizeByTriangle = 12;
+	gs.program = buildProgram ( "basic.vsl", "basic.fsl" );
 
 	//Mesh mesh = Mesh::loadOFF ( "buddha.off", false );
-	Mesh mesh = Mesh::loadOBJ ( "stormtrooper.obj", false );
+	Mesh mesh	= Mesh::loadOBJ ( "suzanne.obj", false );
+	Mesh ground = Mesh::loadOBJ ( "cube.obj", false );
 
-	//mesh.rotate ( M_PI / 2, Vector3 ( 1.0f, .0f, .0f ) );
+	//mesh.rotate ( M_PI / 2, Vector3 ( 1.0f, .0f, .0f ) ); // for girl.obj
 	mesh.scale ( Vector3 ( 3.0f, 3.0f, 3.0f ) );
+
+	ground.scale ( Vector3 ( 5.0f, .5f, 5.0f ) );
+	ground.translate ( Vector3 ( .0f, -3.0f, .0f ) );
+
+	mesh.indexData ( );
+	ground.indexData ( );
 	
-	_meshSize = ( mesh._verticesCount );// * sizeByTriangle;
+	_meshSize	= mesh._indexVertexCount;
+	_groundSize = ground._indexVertexCount;
 
-	std::cout << "Initializing data...\n";
+	/*** Init Mesh buffers ****/
+	{ 
+		glCreateVertexArrays ( 1, &gs.vao );
+		glBindVertexArray ( gs.vao );
 
-	float * data = new float[_meshSize];
+		// Init vertex buffer
+		glGenBuffers ( 1, &gs.vertexBuffer );
+		glBindBuffer ( GL_ARRAY_BUFFER, gs.vertexBuffer );
+		glBufferData ( GL_ARRAY_BUFFER, mesh._indexVertexCount * sizeof ( Vector3 ), &mesh._indexVertices[0], GL_STATIC_DRAW );
 
-	Triangle tmp;
-	for ( int i = 0; i < _meshSize - sizeByTriangle; i += sizeByTriangle ) {
-		tmp = mesh.getTriangle ( mesh._faces[i / sizeByTriangle] );
+		glBindBuffer ( GL_ARRAY_BUFFER, gs.vertexBuffer );
+		glEnableVertexArrayAttrib ( gs.vao, 1 );
+		glVertexAttribPointer ( 1, 3, GL_FLOAT, GL_FALSE, 0, 0 );
 
-		data[i]		 = tmp.p1.x;
-		data[i + 1]  = tmp.p1.y;
-		data[i + 2]  = tmp.p1.z;
-		data[i + 3]  = 1.f;
+		glBindBuffer ( GL_ARRAY_BUFFER, 0 );
 
-		data[i + 4]  = tmp.p2.x;
-		data[i + 5]  = tmp.p2.y;
-		data[i + 6]  = tmp.p2.z;
-		data[i + 7]  = 1.f;
+		// init normal buffer
+		glGenBuffers ( 1, &gs.normalBuffer );
+		glBindBuffer ( GL_ARRAY_BUFFER, gs.normalBuffer );
+		glBufferData ( GL_ARRAY_BUFFER, mesh._indexVertexCount * sizeof ( Vector3 ), &mesh._indexNormals[0], GL_STATIC_DRAW );
+		glBindBuffer ( GL_ARRAY_BUFFER, 0 );
 
-		data[i + 8]  = tmp.p3.x;
-		data[i + 9]	 = tmp.p3.y;
-		data[i + 10] = tmp.p3.z;
-		data[i + 11] = 1.f;
+		glBindBuffer ( GL_ARRAY_BUFFER, gs.normalBuffer );
+		glEnableVertexArrayAttrib ( gs.vao, 2 );
+		glVertexAttribPointer ( 2, 3, GL_FLOAT, GL_FALSE, 0, ( void* ) 0 );
+		
+		glBindBuffer ( GL_ARRAY_BUFFER, 0 );
+
+		glBindVertexArray ( 0 );
 	}
 
-	// Init vertex buffer
-	glGenBuffers ( 1, &gs.vertexBuffer );
-	glBindBuffer ( GL_ARRAY_BUFFER, gs.vertexBuffer );
-	glBufferData ( GL_ARRAY_BUFFER, mesh._vertices.size() * sizeof ( Vector3 ), &mesh._vertices[0], GL_STATIC_DRAW );
-	//glBufferData ( GL_ARRAY_BUFFER, _meshSize * sizeof ( float ), data, GL_STATIC_DRAW );
-	//glBindBuffer ( GL_ARRAY_BUFFER, 0 );
+	/*** Init Ground buffers ****/
+	{
+		glCreateVertexArrays ( 1, &gs.vao_ground );
+		glBindVertexArray ( gs.vao_ground );
 
-	glCreateVertexArrays ( 1, &gs.vao );
-	glBindVertexArray ( gs.vao );
-	
-	glBindBuffer ( GL_ARRAY_BUFFER, gs.vertexBuffer );
-	glEnableVertexArrayAttrib ( gs.vao, 1 );
-	glVertexAttribPointer ( 1, 3, GL_FLOAT, GL_FALSE, 0, 0 );
-	
-	glBindBuffer ( GL_ARRAY_BUFFER, 0 );	
-	glBindVertexArray ( 0 );
+		// Init vertex buffer
+		glGenBuffers ( 1, &gs.vertexBuffer_ground );
+		glBindBuffer ( GL_ARRAY_BUFFER, gs.vertexBuffer_ground );
+		glBufferData ( GL_ARRAY_BUFFER, ground._indexVertexCount * sizeof ( Vector3 ), &ground._indexVertices[0], GL_STATIC_DRAW );
 
-	// init normal buffer
+		glBindBuffer ( GL_ARRAY_BUFFER, gs.vertexBuffer_ground );
+		glEnableVertexArrayAttrib ( gs.vao_ground, 1 );
+		glVertexAttribPointer ( 1, 3, GL_FLOAT, GL_FALSE, 0, 0 );
 
-	float * data2 = new float[mesh._normalsF.size ( )*3];
+		glBindBuffer ( GL_ARRAY_BUFFER, 0 );
 
-	Vector3 tmp2;
-	for ( int i = 0; i < mesh._normalsF.size ( ) - 3; i += 3 ) {
-		tmp2 = mesh._normalsF[i / 3];
+		// init normal buffer
+		glGenBuffers ( 1, &gs.normalBuffer_ground );
+		glBindBuffer ( GL_ARRAY_BUFFER, gs.normalBuffer_ground );
+		glBufferData ( GL_ARRAY_BUFFER, ground._indexVertexCount * sizeof ( Vector3 ), &ground._indexNormals[0], GL_STATIC_DRAW );
+		glBindBuffer ( GL_ARRAY_BUFFER, 0 );
 
-		data2[i]	 = tmp2.x;
-		data2[i + 1] = tmp2.y;
-		data2[i + 2] = tmp2.z;
+		glBindBuffer ( GL_ARRAY_BUFFER, gs.normalBuffer_ground );
+		glEnableVertexArrayAttrib ( gs.vao_ground, 2 );
+		glVertexAttribPointer ( 2, 3, GL_FLOAT, GL_FALSE, 0, ( void* ) 0 );
 
-		//std::cout << data2[i] << " " << data2[i+1] << " " << data2[i+2] << std::endl;
+		glBindBuffer ( GL_ARRAY_BUFFER, 0 );
+
+		glBindVertexArray ( 0 );
 	}
+	
+	// Enable depth test
+	glEnable ( GL_DEPTH_TEST );
+	glDepthFunc ( GL_LESS );
 
-	glGenBuffers ( 1, &gs.normalBuffer );
-	glBindBuffer ( GL_ARRAY_BUFFER, gs.normalBuffer );
-	glBufferData ( GL_ARRAY_BUFFER, mesh._normalsF.size ( ) * sizeof ( Vector3 ), &mesh._normalsF[0], GL_STATIC_DRAW );
-	glBindBuffer ( GL_ARRAY_BUFFER, 0 );
-
-	glBindBuffer ( GL_ARRAY_BUFFER, gs.normalBuffer );
-	glEnableVertexArrayAttrib ( gs.vao, 2 );
-	glVertexAttribPointer ( 2, 3, GL_FLOAT, GL_FALSE, 0, ( void* ) 0 );
-	glBindBuffer ( GL_ARRAY_BUFFER, 0 );
-
-	_lightpos = Vector3 ( 1, 2, 1 );
+	_lightpos = Vector3 ( .0f, .0f, 4.0f );
 }
 
-float r = .0f;
-float g = .5f;
-float b = 1.f;
 void render ( GLFWwindow* window ) {
 	int width, height;
 	
 	glfwGetFramebufferSize ( window, &width, &height );
 	glViewport ( 0, 0, width, height );
 
-	/*r += .01f;
-	r = r > 1.f ? .0f : r;
-
-	g += .01f;
-	g = g > 1.f ? .0f : g;
-
-	b -= .01f;
-	b = b < .0f ? 1.f : b;*/
-
-	glClear ( GL_COLOR_BUFFER_BIT );
+	glClear ( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
 
 	glUseProgram ( gs.program);
 
@@ -324,16 +316,25 @@ void render ( GLFWwindow* window ) {
 	glUniformMatrix4fv ( viewLoc, 1, GL_FALSE, glm::value_ptr ( view ) );
 	glUniformMatrix4fv ( projLoc, 1, GL_FALSE, glm::value_ptr ( projection ) );
 
-	glm::mat4 model;
+	glm::mat4 model = glm::mat4 ( );
 	glUniformMatrix4fv ( modelLoc, 1, GL_FALSE, glm::value_ptr ( model ) );
 
-	glProgramUniform3f ( gs.program, 3, r, g, b );
+	glProgramUniform3f ( gs.program, 3, .235f, .709f, .313f );
 	glProgramUniform3f ( gs.program, 4, _lightpos.x, _lightpos.y, _lightpos.z );
+
 	glBindVertexArray ( gs.vao );
 	{		
 		glDrawArrays ( GL_TRIANGLES, 0, _meshSize );
 	}
-
 	glBindVertexArray ( 0 );
+
+	glProgramUniform3f ( gs.program, 3, 1, 1, 1 );
+
+	glBindVertexArray ( gs.vao_ground );
+	{
+		glDrawArrays ( GL_TRIANGLES, 0, _groundSize );
+	}
+	glBindVertexArray ( 0 );
+
 	glUseProgram ( 0 );
 }

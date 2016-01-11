@@ -9,7 +9,7 @@ Mesh::~Mesh ( ) {
 }
 
 // Charge un fichier OBJ
-Mesh Mesh::loadOBJ ( const std::string &fileName, bool calculateNormalVertex ) {
+Mesh Mesh::loadOBJ ( const std::string &fileName, bool indexData ) {
 	Mesh mesh = Mesh ( );
 
 	FILE * file = fopen ( fileName.c_str ( ), "r" );
@@ -25,7 +25,7 @@ Mesh Mesh::loadOBJ ( const std::string &fileName, bool calculateNormalVertex ) {
 
 	mesh._vertices	= std::vector<Vector3> ( );
 	mesh._uvs		= std::vector<Vector2> ( );
-	mesh._normalsF	= std::vector<Vector3> ( );
+	mesh._normals	= std::vector<Vector3> ( );
 	mesh._faces		= std::vector<Face> ( );
 
 	Vector3 center;
@@ -64,7 +64,7 @@ Mesh Mesh::loadOBJ ( const std::string &fileName, bool calculateNormalVertex ) {
 			
 			fscanf ( file, "%f %f %f\n", &normal.x, &normal.y, &normal.z );
 			
-			mesh._normalsF.push_back ( normal );
+			mesh._normals.push_back ( normal );
 
 			addNormal = true;
 		}
@@ -121,11 +121,11 @@ Mesh Mesh::loadOBJ ( const std::string &fileName, bool calculateNormalVertex ) {
 		}
 	}
 
-	mesh._verticesCount = mesh._vertices.size ( );
+	mesh._vertexCount = mesh._vertices.size ( );
 	mesh._facesCount = mesh._faces.size ( );
 
 	// Calcule du centre de gravité
-	center /= mesh._verticesCount;
+	center /= mesh._vertexCount;
 	mesh._center = center;
 
 	double max = calculateMax ( mesh );
@@ -134,40 +134,54 @@ Mesh Mesh::loadOBJ ( const std::string &fileName, bool calculateNormalVertex ) {
 
 	if ( !addNormal ) {
 		// Calcule des normales par face
-		std::cout << "Calculate face normals...\n";
-		mesh._normalsF = std::vector<Vector3> ( mesh._facesCount );
+		std::cout << "Calculate normals...\n";
+		mesh._normals = std::vector<Vector3> ( mesh._facesCount );
 		for ( uint32_t k = 0; k < mesh._facesCount; ++k ) {
 			Face face = mesh._faces[k];
 
+			face._normalIndices.push_back ( k );
+			face._normalIndices.push_back ( k );
+			face._normalIndices.push_back ( k );
+			
 			Vector3 normal = glm::normalize ( glm::cross ( mesh._vertices[face._vertexIndices[1]] - mesh._vertices[face._vertexIndices[0]], mesh._vertices[face._vertexIndices[2]] - mesh._vertices[face._vertexIndices[0]] ) );
-			mesh._normalsF[k] = normal;
+			mesh._normals[k] = normal;
 		}
 	}	
 
-	if ( calculateNormalVertex ) {
-		// Calcule des normales par vertex
-		std::cout << "Calculate vertex normals...\n";
-		mesh._normalsV = std::vector<Vector3> ( mesh._verticesCount );
-		for ( uint32_t idx = 0; idx < mesh._verticesCount; ++idx ) {
-			Vector3 normal = { .0f, .0f, .0f };
+	if ( indexData ) {
+		mesh.indexData ( );
+	}
 
-			for ( uint32_t m = 0; m < mesh._facesCount; ++m ) {
-				Face face = mesh._faces[m];
+	return mesh;
+}
 
-				for ( uint32_t n = 0; n < face._verticesCount; ++n ) {
-					if ( face._vertexIndices[n] == idx ) {
-						normal += mesh._normalsF[m];
-					}
-				}
-			}
 
-			mesh._normalsV[idx] = glm::normalize ( normal );
+void Mesh::indexData ( ) {
+	// Calcule des vertices indexés
+	std::cout << "Calculate index vertices...\n";
+	_indexVertices = std::vector<Vector3> ( );
+	for ( uint32_t k = 0; k < _facesCount; ++k ) {
+		Face face = _faces[k];
+
+		for ( uint32_t i = 0; i < face._verticesCount; ++i ) {
+			int index = face._vertexIndices[i];
+			_indexVertices.push_back ( _vertices[index] );
 		}
 	}
 
-	//buildEdges ( mesh );
+	_indexVertexCount = _indexVertices.size ( );
 
-	return mesh;
+	// Calcule des normales indexés
+	std::cout << "Calculate index normals...\n";
+	_indexNormals = std::vector<Vector3> ( );
+	for ( uint32_t k = 0; k < _facesCount; ++k ) {
+		Face face = _faces[k];
+
+		for ( uint32_t i = 0; i < face._verticesCount; ++i ) {
+			int index = face._normalIndices[i];
+			_indexNormals.push_back ( _normals[index] );
+		}
+	}
 }
 
 
@@ -187,9 +201,9 @@ void Mesh::saveOFF ( const std::string &fileName, const Mesh &mesh ) {
 	std::ofstream file;
 	file.open ( fileName );
 	file << "OFF" << std::endl;
-	file << mesh._verticesCount << " " << mesh._facesCount << " " << mesh._edgesCount << std::endl;
+	file << mesh._vertexCount << " " << mesh._facesCount << " " << mesh._edgesCount << std::endl;
 
-	for ( uint32_t i = 0; i < mesh._verticesCount; ++i ) {
+	for ( uint32_t i = 0; i < mesh._vertexCount; ++i ) {
 		file << mesh._vertices[i];
 	}
 
@@ -215,13 +229,13 @@ Mesh Mesh::loadOFF ( const std::string &fileName, bool calculateNormalVertex ) {
 	file >> mesh._type;
 
 	// Infos
-	file >> mesh._verticesCount >> mesh._facesCount >> mesh._edgesCount;
+	file >> mesh._vertexCount >> mesh._facesCount >> mesh._edgesCount;
 
 	Vector3 center;
 
 	// Read vertex
-	mesh._vertices = std::vector<Vector3> ( mesh._verticesCount );
-	for ( uint32_t i = 0; i < mesh._verticesCount; ++i ) {
+	mesh._vertices = std::vector<Vector3> ( mesh._vertexCount );
+	for ( uint32_t i = 0; i < mesh._vertexCount; ++i ) {
 		Vector3 v;
 		file >> v.x >> v.y >> v.z;
 		center += v;
@@ -229,7 +243,7 @@ Mesh Mesh::loadOFF ( const std::string &fileName, bool calculateNormalVertex ) {
 	}
 
 	// Calcule du centre de gravité
-	center /= mesh._verticesCount;
+	center /= mesh._vertexCount;
 	mesh._center = center;
 
 	// Read faces
@@ -252,19 +266,19 @@ Mesh Mesh::loadOFF ( const std::string &fileName, bool calculateNormalVertex ) {
 
 	// Calcule des normales par face
 	std::cout << "Calculate face normals...\n";
-	mesh._normalsF = std::vector<Vector3> ( mesh._facesCount );
+	mesh._normals = std::vector<Vector3> ( mesh._facesCount );
 	for ( uint32_t k = 0; k < mesh._facesCount; ++k ) {
 		Face face = mesh._faces[k];
 		
 		Vector3 normal = glm::normalize ( glm::cross ( mesh._vertices[face._vertexIndices[1]] - mesh._vertices[face._vertexIndices[0]], mesh._vertices[face._vertexIndices[2]] - mesh._vertices[face._vertexIndices[0]] ) );
-		mesh._normalsF[k] = normal;
+		mesh._normals[k] = normal;
 	}
 
 	if ( calculateNormalVertex ) {
 		// Calcule des normales par vertex
 		std::cout << "Calculate vertex normals...\n";
-		mesh._normalsV = std::vector<Vector3> ( mesh._verticesCount );
-		for ( uint32_t idx = 0; idx < mesh._verticesCount; ++idx ) {
+		mesh._indexNormals = std::vector<Vector3> ( mesh._vertexCount );
+		for ( uint32_t idx = 0; idx < mesh._vertexCount; ++idx ) {
 			Vector3 normal = { .0f, .0f, .0f };
 
 			for ( uint32_t m = 0; m < mesh._facesCount; ++m ) {
@@ -272,12 +286,12 @@ Mesh Mesh::loadOFF ( const std::string &fileName, bool calculateNormalVertex ) {
 
 				for ( uint32_t n = 0; n < face._verticesCount; ++n ) {
 					if ( face._vertexIndices[n] == idx ) {
-						normal += mesh._normalsF[m];
+						normal += mesh._normals[m];
 					}
 				}
 			}
 
-			mesh._normalsV[idx] = glm::normalize ( normal );
+			mesh._indexNormals[idx] = glm::normalize ( normal );
 		}
 	}
 	
@@ -289,10 +303,10 @@ Mesh Mesh::loadOFF ( const std::string &fileName, bool calculateNormalVertex ) {
 // Centre et normalise le mesh
 void Mesh::centerNormalizeMesh ( Mesh &mesh, const double &max ) {
 	std::cout << "Center & Normalize Mesh...\n";
-	float p = 1.0f / mesh._verticesCount;
+	float p = 1.0f / mesh._vertexCount;
 	double inv = 1 / max;
 
-	for ( uint32_t i = 0; i < mesh._verticesCount; ++i ) {
+	for ( uint32_t i = 0; i < mesh._vertexCount; ++i ) {
 		mesh._vertices[i] -= mesh._center;
 		mesh._vertices[i] *= inv;
 	}
@@ -301,10 +315,10 @@ void Mesh::centerNormalizeMesh ( Mesh &mesh, const double &max ) {
 // Calcule le max
 double Mesh::calculateMax ( Mesh &mesh ) {
 	std::cout << "Calculate max...\n";
-	float p = 1.0f / mesh._verticesCount;
+	float p = 1.0f / mesh._vertexCount;
 	double max = 0;
 
-	for ( uint32_t i = 0; i < mesh._verticesCount; ++i ) {
+	for ( uint32_t i = 0; i < mesh._vertexCount; ++i ) {
 		// Calcule coordonnées max absolue
 		Vector3 vertex = mesh._vertices[i];
 		double abs;

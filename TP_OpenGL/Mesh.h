@@ -56,7 +56,7 @@ public:
 	Mesh ( );
 	~Mesh ( );
 
-	static Mesh loadOBJ ( const std::string &fileName, bool calculateNormalVertex );
+	static Mesh loadOBJ ( const std::string &fileName, bool indexData );
 	static Mesh loadOFF ( const std::string &fileName, bool calculateNormalVertex );
 	static void saveOFF ( const std::string &fileName, const Mesh &mesh );
 
@@ -65,24 +65,28 @@ public:
 	std::string _name;
 	std::string _type;
 	std::vector<Vector3> _vertices;
+	std::vector<Vector3> _indexVertices;
 	std::vector<Vector2> _uvs;
-	std::vector<Vector3> _normalsF;
-	std::vector<Vector3> _normalsV;
+	std::vector<Vector2> _indexUvs;
+	std::vector<Vector3> _normals;
+	std::vector<Vector3> _indexNormals;
 	std::vector<Face> _faces;
 	std::vector<Edge> _edges;
 	
 	Vector3 _center;
 	uint32_t
-		_verticesCount,
+		_indexVertexCount,
+		_vertexCount,
 		_facesCount,
 		_edgesCount;
 
 	void rotate ( float angle, Vector3 normal ) {
 		std::cout << "Rotating mesh...\n";
 
-		for ( unsigned int i = 0; i < _verticesCount; i++ ) {
+		for ( unsigned int i = 0; i < _vertexCount; i++ ) {
 			glm::mat4 trans = glm::rotate ( glm::mat4 ( 1.0f ), angle, normal );
 			glm::vec4 tmpPoint = glm::vec4 ( _vertices[i], 1.f ) * trans;
+			
 			_vertices[i] = Vector3 ( tmpPoint / tmpPoint.w );
 		}
 	}
@@ -90,7 +94,7 @@ public:
 	void translate ( Vector3 t ) {
 		std::cout << "Translating mesh...\n";
 
-		for ( unsigned int i = 0; i < _verticesCount; i++ ) {
+		for ( unsigned int i = 0; i < _vertexCount; i++ ) {
 			_vertices[i] += t;
 		}
 	}
@@ -98,10 +102,12 @@ public:
 	void scale ( Vector3 s ) {
 		std::cout << "Scaling mesh...\n";
 
-		for ( unsigned int i = 0; i < _verticesCount; i++ ) {
+		for ( unsigned int i = 0; i < _vertexCount; i++ ) {
 			_vertices[i] *= s;
 		}
 	}
+
+	void indexData ( );
 
 	static double calculateMax ( Mesh &mesh );
 	static void centerNormalizeMesh ( Mesh &mesh, const double &max );
