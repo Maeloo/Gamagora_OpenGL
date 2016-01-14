@@ -15,5 +15,5 @@ void main() {
 	float cosTheta = clamp(dot(n,l), 0, 1);
 
 	//color_out = vec4(n,1);
-	color_out = 10 * vec4(color * cosTheta, 1) / (distance * distance);
+	color_out = 50 * vec4(color * cosTheta, 1) / (distance * distance);
 }

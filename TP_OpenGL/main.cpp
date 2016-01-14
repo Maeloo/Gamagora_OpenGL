@@ -5,10 +5,13 @@
 #include <vector>
 #include <list>
 
-#include <GL/glew.h>
+#include "Mesh.h";
+#include "Texture.h";
+#include "Global.h"
 
+#include <GL/glew.h>
 #include <GL/glfw3.h>
-#include <GL/gl.h>
+#include <GL/GL.h>
 
 #include <glm\glm\vec3.hpp>
 #include <glm\glm\mat4x4.hpp>
@@ -16,7 +19,6 @@
 #include <glm\glm\gtc\matrix_transform.hpp>
 #include <glm\glm\gtc\type_ptr.hpp>
 
-#include "Mesh.h";
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -58,7 +60,7 @@ int main ( void ) {
 	glfwWindowHint ( GLFW_OPENGL_DEBUG_CONTEXT, GL_TRUE );
 
 	/* Create a windowed mode window and its OpenGL context */
-	window = glfwCreateWindow ( 640, 480, "OpenGL PORTAL", NULL, NULL );
+	window = glfwCreateWindow ( 800, 800, "OpenGL PORTAL", NULL, NULL );
 	if ( !window ) {
 		std::cerr << "Could not init window" << std::endl;
 		glfwTerminate ( );
@@ -187,12 +189,14 @@ GLuint buildProgram ( const std::string vertexFile, const std::string fragmentFi
 struct {
 	GLuint program; // a shader
 	GLuint shadowmap_program;
-	GLuint quad_program;
+	GLuint texture_program;
 
 	GLuint fbo;
-	GLuint shadowMap;
+	GLuint depthTexture;
 
-	GLuint quadBuffer;
+	//GLuint vao_quad;
+	GLuint vertexBuffer_texture;
+	GLuint uvBuffer_texture;
 
 	GLuint vao; // a vertex array object
 	GLuint vertexBuffer;
@@ -203,15 +207,18 @@ struct {
 	GLuint normalBuffer_ground;
 } gs;
 
-GLuint _meshSize;
-GLuint _groundSize;
-Vector3 _lightpos;
+GLuint mesh_size;
+GLuint ground_size;
+Vector3 light_pos;
+
+glm::mat4 model;
+glm::mat4 projection;
+
 void init ( ) {
 	// Build our program and an empty VAO
 	gs.program = buildProgram ( "basic.vsl", "basic.fsl" );
-	//gs.shadowmap_program = buildProgram ( "shadowmap.vsl", "shadowmap.fsl" );
-	gs.shadowmap_program = buildProgram ( "DepthRTT.vertexshader", "DepthRTT.fragmentshader" );
-	gs.quad_program = buildProgram ( "Passthrough.vsl", "SimpleTexture.fsl" );
+	gs.shadowmap_program = buildProgram ( "shadowmap.vsl", "shadowmap.fsl" );
+	gs.texture_program = buildProgram ( "texture.vsl", "texture.fsl" );
 
 	//Mesh mesh = Mesh::loadOFF ( "buddha.off", false );
 	Mesh mesh	= Mesh::loadOBJ ( "suzanne.obj", false );
@@ -220,21 +227,21 @@ void init ( ) {
 	//mesh.rotate ( M_PI / 2, Vector3 ( 1.0f, .0f, .0f ) ); // for girl.obj
 	mesh.scale ( Vector3 ( 3.0f, 3.0f, 3.0f ) );
 
-	ground.scale ( Vector3 ( 5.0f, .5f, 5.0f ) );
+	ground.scale ( Vector3 ( 10.0f, .25f, 10.0f ) );
 	ground.translate ( Vector3 ( .0f, -3.0f, .0f ) );
 
 	mesh.indexData ( );
 	ground.indexData ( );
 	
-	_meshSize	= mesh._indexVertexCount;
-	_groundSize = ground._indexVertexCount;
+	mesh_size	= mesh._indexVertexCount;
+	ground_size = ground._indexVertexCount;
 
-	/*** Init Mesh buffers ****/
+	/**** Init Mesh buffers ****/
 	{ 
 		glCreateVertexArrays ( 1, &gs.vao );
 		glBindVertexArray ( gs.vao );
 
-		// Init vertex buffer
+		// init vertex buffer
 		glGenBuffers ( 1, &gs.vertexBuffer );
 		glBindBuffer ( GL_ARRAY_BUFFER, gs.vertexBuffer );
 		glBufferData ( GL_ARRAY_BUFFER, mesh._indexVertexCount * sizeof ( Vector3 ), &mesh._indexVertices[0], GL_STATIC_DRAW );
@@ -260,12 +267,12 @@ void init ( ) {
 		glBindVertexArray ( 0 );
 	}
 
-	/*** Init Ground buffers ****/
+	/**** Init Ground buffers ****/
 	{
 		glCreateVertexArrays ( 1, &gs.vao_ground );
 		glBindVertexArray ( gs.vao_ground );
 
-		// Init vertex buffer
+		// init vertex buffer
 		glGenBuffers ( 1, &gs.vertexBuffer_ground );
 		glBindBuffer ( GL_ARRAY_BUFFER, gs.vertexBuffer_ground );
 		glBufferData ( GL_ARRAY_BUFFER, ground._indexVertexCount * sizeof ( Vector3 ), &ground._indexVertices[0], GL_STATIC_DRAW );
@@ -291,39 +298,17 @@ void init ( ) {
 		glBindVertexArray ( 0 );
 	}
 
-	/*** Init Quad buffer ****/
-	{
-		static const GLfloat g_quad_vertex_buffer_data[] = {
-			-1.0f, -1.0f, 0.0f,
-			1.0f, -1.0f, 0.0f,
-			-1.0f, 1.0f, 0.0f,
-			-1.0f, 1.0f, 0.0f,
-			1.0f, -1.0f, 0.0f,
-			1.0f, 1.0f, 0.0f,
-		};
 
-		glGenBuffers ( 1, &gs.quadBuffer );
-		glBindBuffer ( GL_ARRAY_BUFFER, gs.quadBuffer );
-		glBufferData ( GL_ARRAY_BUFFER, sizeof ( g_quad_vertex_buffer_data ), g_quad_vertex_buffer_data, GL_STATIC_DRAW );
-	}
-
+	/**** Init Framebuffer ****/
+	if (true)
 	{
+		glGenTextures ( 1, &gs.depthTexture );
+		glBindTexture ( GL_TEXTURE_2D, gs.depthTexture );
+		glTexStorage2D ( GL_TEXTURE_2D, 1, GL_DEPTH_COMPONENT32F, 800, 800 );
+
 		glGenFramebuffers ( 1, &gs.fbo );
-		
-		glGenTextures ( 1, &gs.shadowMap );
-		glBindTexture ( GL_TEXTURE_2D, gs.shadowMap );
-		glTexImage2D ( GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, 640, 480, 0, GL_DEPTH_COMPONENT, GL_FLOAT, 0 );
-		glTexParameterf ( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR );
-		glTexParameterf ( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR );
-		glTexParameterf ( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE );
-		glTexParameterf ( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE );
-
 		glBindFramebuffer ( GL_FRAMEBUFFER, gs.fbo );
-
-		glFramebufferTexture2D ( GL_DRAW_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, gs.shadowMap, 0 );		
-
-		glDrawBuffer ( GL_NONE );
-		glReadBuffer ( GL_NONE );
+		glFramebufferTexture2D ( GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, gs.depthTexture, 0 );		
 
 		GLenum Status = glCheckFramebufferStatus ( GL_FRAMEBUFFER );
 
@@ -331,87 +316,128 @@ void init ( ) {
 			printf ( "FB error, status: 0x%x\n", Status );
 			exit(-1);
 		}
+
+		glBindFramebuffer ( GL_FRAMEBUFFER, 0 );
+	}
+
+
+
+	/**** [DEBUG] Init texture ****/
+	if (false)
+	{
+		gs.depthTexture = loadBMP_custom ( "uvtemplate.bmp" );
+
+		glGenBuffers ( 1, &gs.vertexBuffer_texture );
+		glBindBuffer ( GL_ARRAY_BUFFER, gs.vertexBuffer_texture );
+		glBufferData ( GL_ARRAY_BUFFER, sizeof ( g_vertex_buffer_data2 ), g_vertex_buffer_data2, GL_STATIC_DRAW );
+
+		glGenBuffers ( 1, &gs.uvBuffer_texture );
+		glBindBuffer ( GL_ARRAY_BUFFER, gs.uvBuffer_texture );
+		glBufferData ( GL_ARRAY_BUFFER, sizeof ( g_uv_buffer_data2 ), g_uv_buffer_data2, GL_STATIC_DRAW );
+
+		glBindBuffer ( GL_ARRAY_BUFFER, 0 );
+
+	}
+
+	/**** Init matrix ****/
+	{
+		model = glm::mat4 ( 1.0f );
+		projection = glm::perspective ( 45.0f, ( GLfloat ) 800 / ( GLfloat ) 800, 0.1f, 100.0f );
 	}
 	
-	// Enable depth test
 	glEnable ( GL_DEPTH_TEST );
 	glDepthFunc ( GL_LESS );
 
-	_lightpos = Vector3 ( .0f, .0f, 4.0f );
+	light_pos = Vector3 ( 1.0f, 2.0f, 4.0f );
 }
 
 void render ( GLFWwindow* window ) {	
 	glfwGetFramebufferSize ( window, &WIDTH, &HEIGHT );
 
 	/**************************** ShadowMap Pass ****************************/
+	if (false)
 	{
-		glBindFramebuffer ( GL_FRAMEBUFFER, gs.shadowMap );
 		glViewport ( 0, 0, WIDTH, HEIGHT );
-
-		glEnable ( GL_CULL_FACE );
-		glCullFace ( GL_BACK ); 
 
 		glClear ( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
 
 		glUseProgram ( gs.shadowmap_program );
 
-		glm::vec3 lightInvDir = glm::vec3 ( 0.5f, 2, 2 );
+		/*glm::mat4 view = glm::lookAt ( 
+			-light_pos, 
+			glm::vec3 ( 0, 0, 0 ), 
+			glm::vec3 ( 0, 1, 0 ) );*/
 
-		glm::mat4 depthProjectionMatrix = glm::ortho<float> ( -10, 10, -10, 10, -10, 20 );
-		glm::mat4 depthViewMatrix = glm::lookAt ( lightInvDir, glm::vec3 ( 0, 0, 0 ), glm::vec3 ( 0, 1, 0 ) );
-		glm::mat4 depthModelMatrix = glm::mat4 ( 1.0 );
-		glm::mat4 depthMVP = depthProjectionMatrix * depthViewMatrix * depthModelMatrix;
+		GLfloat radius = 20.0f;
+		GLfloat camX = sin ( glfwGetTime ( ) ) * radius;
+		GLfloat camZ = cos ( glfwGetTime ( ) ) * radius;
+		glm::mat4 view = glm::lookAt (
+			glm::vec3 ( camX, 0.0f, camZ ),
+			glm::vec3 ( 0.0f, 0.0f, 0.0f ),
+			glm::vec3 ( 0.0f, 1.0f, 0.0f ) );
 
-		GLuint depthMatrixID = glGetUniformLocation ( gs.shadowmap_program, "depthMVP" );
+		glm::mat4 depthMVP = projection * view * model;
 
-		glUniformMatrix4fv ( depthMatrixID, 1, GL_FALSE, &depthMVP[0][0] );
+		GLuint depthMatrixLoc = glGetUniformLocation ( gs.shadowmap_program, "depthMVP" );
 
-		glBindVertexArray ( gs.vao_ground );
+		glUniformMatrix4fv ( depthMatrixLoc, 1, GL_FALSE, &depthMVP[0][0] );
+
+		glBindVertexArray ( gs.vao );
 		{
-			glDrawArrays ( GL_TRIANGLES, 0, _groundSize );
+			glDrawArrays ( GL_TRIANGLES, 0, mesh_size );
 		}
 		glBindVertexArray ( 0 );
 
-		glDisableVertexAttribArray ( 0 );
+		glBindVertexArray ( gs.vao_ground );
+		{
+			glDrawArrays ( GL_TRIANGLES, 0, ground_size );
+		}
+		glBindVertexArray ( 0 );
 
-		glBindFramebuffer ( GL_FRAMEBUFFER, 0 );
-		glViewport ( 0, 0, WIDTH, HEIGHT ); 
-
-		glEnable ( GL_CULL_FACE );
-		glCullFace ( GL_BACK );
+		glUseProgram ( 0 );
 	}
 	/**********************************************************************/
 
 
 
-	/**************************** [DEBUG] Rendu ShadowMap ****************************/
-	if (true)
+	/**************************** [DEBUG] Rendu Depth Texture *******************/
+	if (false)
 	{
-		glViewport ( 0, 0, 512, 512 );
+		glClear ( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
 
-		GLuint texID = glGetUniformLocation ( gs.quad_program, "texture" );
+		glUseProgram ( gs.texture_program );
 
-		glUseProgram ( gs.quad_program );
+		GLuint matrixLoc = glGetUniformLocation ( gs.texture_program, "MVP" );
+
+		glm::mat4 view = glm::lookAt (
+			glm::vec3 ( 0, 0, 2 ), 
+			glm::vec3 ( 0, 0, 0 ), 
+			glm::vec3 ( 0, 1, 0 ) );
+		glm::mat4 MVP = projection * view * model;
+
+		glUniformMatrix4fv ( matrixLoc, 1, GL_FALSE, &MVP[0][0] );
 
 		glActiveTexture ( GL_TEXTURE0 );
-		glBindTexture ( GL_TEXTURE_2D, gs.shadowMap );
-		glUniform1i ( texID, 0 );
+		glBindTexture ( GL_TEXTURE_2D, gs.depthTexture );
+
+		GLuint textureLoc = glGetUniformLocation ( gs.texture_program, "texture_sampler" );
+
+		glUniform1i ( textureLoc, 0 );
 
 		glEnableVertexAttribArray ( 0 );
-		glBindBuffer ( GL_ARRAY_BUFFER, gs.quadBuffer );
-		glVertexAttribPointer (
-			0,                 
-			3,                 
-			GL_FLOAT,          
-			GL_FALSE,          
-			0,                 
-			( void* ) 0        
-			);
+		glBindBuffer ( GL_ARRAY_BUFFER, gs.vertexBuffer_texture );
+		glVertexAttribPointer (	0, 3, GL_FLOAT, GL_FALSE, 0, ( void* ) 0 );
+
+		glEnableVertexAttribArray ( 1 );
+		glBindBuffer ( GL_ARRAY_BUFFER, gs.uvBuffer_texture );
+		glVertexAttribPointer ( 1, 2, GL_FLOAT, GL_FALSE, 0, ( void* ) 0 );
+
+		glDrawArrays ( GL_TRIANGLES, 0, 6 );
 
 		glDisableVertexAttribArray ( 0 );
-
-		glfwSwapBuffers ( window );
-		glfwPollEvents ( );
+		glDisableVertexAttribArray ( 1 );
+		glBindBuffer ( GL_ARRAY_BUFFER, 0 );
+		glUseProgram ( 0 );
 	}
 	/**********************************************************************/
 
@@ -426,35 +452,28 @@ void render ( GLFWwindow* window ) {
 
 		glUseProgram ( gs.program );
 
-		// Camera/View transformation
-		glm::mat4 view;
-		GLfloat radius = 10.0f;
+		GLfloat radius = 20.0f;
 		GLfloat camX = sin ( glfwGetTime ( ) ) * radius;
 		GLfloat camZ = cos ( glfwGetTime ( ) ) * radius;
-		view = glm::lookAt ( glm::vec3 ( camX, 0.0f, camZ ), glm::vec3 ( 0.0f, 0.0f, 0.0f ), glm::vec3 ( 0.0f, 1.0f, 0.0f ) );
-		
-		// Projection 
-		glm::mat4 projection;
-		projection = glm::perspective ( 45.0f, ( GLfloat ) WIDTH / ( GLfloat ) HEIGHT, 0.1f, 100.0f );
-		
-		// Get the uniform locations
+		glm::mat4 view = glm::lookAt ( 
+			glm::vec3 ( camX, 0.0f, camZ ), 
+			glm::vec3 ( 0.0f, 0.0f, 0.0f ), 
+			glm::vec3 ( 0.0f, 1.0f, 0.0f ) );
+	
 		GLint modelLoc = glGetUniformLocation ( gs.program, "model" );
 		GLint viewLoc = glGetUniformLocation ( gs.program, "view" );
 		GLint projLoc = glGetUniformLocation ( gs.program, "projection" );
 		
-		// Pass the matrices to the shader
 		glUniformMatrix4fv ( viewLoc, 1, GL_FALSE, glm::value_ptr ( view ) );
 		glUniformMatrix4fv ( projLoc, 1, GL_FALSE, glm::value_ptr ( projection ) );
-
-		glm::mat4 model = glm::mat4 ( 1.0f );
 		glUniformMatrix4fv ( modelLoc, 1, GL_FALSE, glm::value_ptr ( model ) );
 
 		glProgramUniform3f ( gs.program, 3, .235f, .709f, .313f );
-		glProgramUniform3f ( gs.program, 4, _lightpos.x, _lightpos.y, _lightpos.z );
+		glProgramUniform3f ( gs.program, 4, light_pos.x, light_pos.y, light_pos.z );
 
 		glBindVertexArray ( gs.vao );
 		{		
-			glDrawArrays ( GL_TRIANGLES, 0, _meshSize );
+			glDrawArrays ( GL_TRIANGLES, 0, mesh_size );
 		}
 		glBindVertexArray ( 0 );
 
@@ -462,7 +481,7 @@ void render ( GLFWwindow* window ) {
 
 		glBindVertexArray ( gs.vao_ground );
 		{
-			glDrawArrays ( GL_TRIANGLES, 0, _groundSize );
+			glDrawArrays ( GL_TRIANGLES, 0, ground_size );
 		}
 		glBindVertexArray ( 0 );
 

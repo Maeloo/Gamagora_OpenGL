@@ -26,11 +26,11 @@ void main() {
  	vec3 eye_direction = vec3(0,0,0) - position_cameraspace;
 
  	// Vector that goes from the vertex to the light, in camera space. M is ommited because it's identity.
- 	//vec3 light_cameraspace = (view * vec4(light_worldspace,1)).xyz;
- 	//light_direction = light_cameraspace + eye_direction;
+ 	vec3 light_cameraspace = (view * vec4(light_worldspace,1)).xyz;
+ 	light_direction = light_cameraspace + eye_direction;
 
  	// lumiere fixe
- 	light_direction = eye_direction;
+ 	//light_direction = eye_direction;
 
  	 // Normal of the the vertex, in camera space
 	normal_cameraspace = (view * model * vec4(normal_modelspace,0)).xyz; 

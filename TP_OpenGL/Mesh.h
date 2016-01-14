@@ -6,7 +6,7 @@
 #include <vector>
 #include <stdint.h>
 
-#include "GL/glut.h"   
+#include "GL/glew.h"   
 
 #include <glm\glm\glm.hpp>
 #include <glm\glm\vec3.hpp>
