@@ -15,7 +15,7 @@
 
 #include <glm\glm\vec3.hpp>
 #include <glm\glm\mat4x4.hpp>
-#include <glm\glm\gtx\transform.hpp>
+//#include <glm\glm\gtx\transform.hpp>
 #include <glm\glm\gtc\matrix_transform.hpp>
 #include <glm\glm\gtc\type_ptr.hpp>
 
@@ -213,6 +213,7 @@ Vector3 light_pos;
 
 glm::mat4 model;
 glm::mat4 projection;
+glm::mat4 light_projection;
 
 void init ( ) {
 	// Build our program and an empty VAO
@@ -300,11 +301,10 @@ void init ( ) {
 
 
 	/**** Init Framebuffer ****/
-	if (true)
 	{
 		glGenTextures ( 1, &gs.depthTexture );
 		glBindTexture ( GL_TEXTURE_2D, gs.depthTexture );
-		glTexStorage2D ( GL_TEXTURE_2D, 1, GL_DEPTH_COMPONENT32F, 800, 800 );
+		glTexStorage2D ( GL_TEXTURE_2D, 1, GL_DEPTH_COMPONENT32F, 4096, 4096 );
 
 		glGenFramebuffers ( 1, &gs.fbo );
 		glBindFramebuffer ( GL_FRAMEBUFFER, gs.fbo );
@@ -323,9 +323,9 @@ void init ( ) {
 
 
 	/**** [DEBUG] Init texture ****/
-	if (false)
+	if (true)
 	{
-		gs.depthTexture = loadBMP_custom ( "uvtemplate.bmp" );
+		//gs.depthTexture = loadBMP_custom ( "uvtemplate.bmp" );
 
 		glGenBuffers ( 1, &gs.vertexBuffer_texture );
 		glBindBuffer ( GL_ARRAY_BUFFER, gs.vertexBuffer_texture );
@@ -336,47 +336,49 @@ void init ( ) {
 		glBufferData ( GL_ARRAY_BUFFER, sizeof ( g_uv_buffer_data2 ), g_uv_buffer_data2, GL_STATIC_DRAW );
 
 		glBindBuffer ( GL_ARRAY_BUFFER, 0 );
-
 	}
 
 	/**** Init matrix ****/
 	{
 		model = glm::mat4 ( 1.0f );
-		projection = glm::perspective ( 45.0f, ( GLfloat ) 800 / ( GLfloat ) 800, 0.1f, 100.0f );
+		GLfloat near_plane = .1f, far_plane = 100.0f;
+		projection = glm::perspective ( 45.0f, ( GLfloat ) 800 / ( GLfloat ) 800, near_plane, far_plane );
+		light_projection = glm::ortho ( -10.0f, 10.0f, -10.0f, 10.0f, near_plane, far_plane );
 	}
 	
 	glEnable ( GL_DEPTH_TEST );
 	glDepthFunc ( GL_LESS );
 
-	light_pos = Vector3 ( 1.0f, 2.0f, 4.0f );
+	light_pos = Vector3 ( 10.0f, -8.0f, 4.0f );
 }
 
 void render ( GLFWwindow* window ) {	
 	glfwGetFramebufferSize ( window, &WIDTH, &HEIGHT );
 
 	/**************************** ShadowMap Pass ****************************/
-	if (false)
 	{
-		glViewport ( 0, 0, WIDTH, HEIGHT );
-
-		glClear ( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
+		glViewport ( 0, 0, 4096, 4096 );
+		
+		glBindFramebuffer ( GL_DRAW_FRAMEBUFFER, gs.fbo );
+		
+		glClear ( GL_DEPTH_BUFFER_BIT );
 
 		glUseProgram ( gs.shadowmap_program );
 
-		/*glm::mat4 view = glm::lookAt ( 
+		glm::mat4 view = glm::lookAt ( 
 			-light_pos, 
 			glm::vec3 ( 0, 0, 0 ), 
-			glm::vec3 ( 0, 1, 0 ) );*/
+			glm::vec3 ( 0, 1, 0 ) );
 
-		GLfloat radius = 20.0f;
+		/*GLfloat radius = 20.0f;
 		GLfloat camX = sin ( glfwGetTime ( ) ) * radius;
 		GLfloat camZ = cos ( glfwGetTime ( ) ) * radius;
 		glm::mat4 view = glm::lookAt (
 			glm::vec3 ( camX, 0.0f, camZ ),
 			glm::vec3 ( 0.0f, 0.0f, 0.0f ),
-			glm::vec3 ( 0.0f, 1.0f, 0.0f ) );
+			glm::vec3 ( 0.0f, 1.0f, 0.0f ) );*/
 
-		glm::mat4 depthMVP = projection * view * model;
+		glm::mat4 depthMVP = light_projection * view * model;
 
 		GLuint depthMatrixLoc = glGetUniformLocation ( gs.shadowmap_program, "depthMVP" );
 
@@ -395,6 +397,8 @@ void render ( GLFWwindow* window ) {
 		glBindVertexArray ( 0 );
 
 		glUseProgram ( 0 );
+
+		glBindFramebuffer ( GL_DRAW_FRAMEBUFFER, 0 );
 	}
 	/**********************************************************************/
 
@@ -438,13 +442,16 @@ void render ( GLFWwindow* window ) {
 		glDisableVertexAttribArray ( 1 );
 		glBindBuffer ( GL_ARRAY_BUFFER, 0 );
 		glUseProgram ( 0 );
+	
+		glBindTexture ( GL_TEXTURE_2D, gs.depthTexture );
+		glGenerateMipmap ( GL_TEXTURE_2D );
 	}
 	/**********************************************************************/
 
 
 	
 	/**************************** Rendu scene ****************************/
-	if (false)
+	if (true)
 	{
 		glViewport ( 0, 0, WIDTH, HEIGHT );
 
@@ -453,23 +460,50 @@ void render ( GLFWwindow* window ) {
 		glUseProgram ( gs.program );
 
 		GLfloat radius = 20.0f;
-		GLfloat camX = sin ( glfwGetTime ( ) ) * radius;
-		GLfloat camZ = cos ( glfwGetTime ( ) ) * radius;
+		GLfloat camX = sin ( glfwGetTime ( ) * 0.5f ) * radius;
+		GLfloat camZ = cos ( glfwGetTime ( ) * 0.5f ) * radius;
 		glm::mat4 view = glm::lookAt ( 
 			glm::vec3 ( camX, 0.0f, camZ ), 
 			glm::vec3 ( 0.0f, 0.0f, 0.0f ), 
 			glm::vec3 ( 0.0f, 1.0f, 0.0f ) );
+		glm::mat4 light_view = glm::lookAt (
+			-light_pos,
+			glm::vec3 ( 0, 0, 0 ),
+			glm::vec3 ( 0, 1, 0 ) );
+		glm::mat4 lightspace_matrix = light_projection * light_view;
+
+		/*glm::mat4 depthMVP = light_projection * lightView * model;
+		glm::mat4 biasMatrix (
+			0.5, 0.0, 0.0, 0.0,
+			0.0, 0.5, 0.0, 0.0,
+			0.0, 0.0, 0.5, 0.0,
+			0.5, 0.5, 0.5, 1.0
+			);
+		glm::mat4 depthBiasMVP = biasMatrix * depthMVP;*/
 	
 		GLint modelLoc = glGetUniformLocation ( gs.program, "model" );
 		GLint viewLoc = glGetUniformLocation ( gs.program, "view" );
 		GLint projLoc = glGetUniformLocation ( gs.program, "projection" );
-		
+		GLint lightMatrixLoc = glGetUniformLocation ( gs.program, "lightspace_matrix" );
+		GLint biasLoc = glGetUniformLocation ( gs.program, "depth_bias_mvp" );
+		GLint textureLoc = glGetUniformLocation ( gs.program, "shadowMap" );
+		GLint lightLoc = glGetUniformLocation ( gs.program, "light_pos" );
+
 		glUniformMatrix4fv ( viewLoc, 1, GL_FALSE, glm::value_ptr ( view ) );
 		glUniformMatrix4fv ( projLoc, 1, GL_FALSE, glm::value_ptr ( projection ) );
 		glUniformMatrix4fv ( modelLoc, 1, GL_FALSE, glm::value_ptr ( model ) );
+		glUniformMatrix4fv ( lightMatrixLoc, 1, GL_FALSE, glm::value_ptr ( lightspace_matrix ) );
+		//glUniformMatrix4fv ( biasLoc, 1, GL_FALSE, glm::value_ptr ( depthBiasMVP ) );
+
+		glUniform3f ( lightLoc, light_pos.x, light_pos.y, light_pos.z );
+
+		glUniform1i ( textureLoc, 0 );
 
 		glProgramUniform3f ( gs.program, 3, .235f, .709f, .313f );
 		glProgramUniform3f ( gs.program, 4, light_pos.x, light_pos.y, light_pos.z );
+
+		glActiveTexture ( GL_TEXTURE0 );
+		glBindTexture ( GL_TEXTURE_2D, gs.depthTexture );
 
 		glBindVertexArray ( gs.vao );
 		{		

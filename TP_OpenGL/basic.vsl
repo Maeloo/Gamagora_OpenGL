@@ -1,42 +1,44 @@
 #version 430
 
-layout (location=1) in vec3 position_modelspace;
-layout (location=2) in vec3 normal_modelspace;
+layout (location=1) in vec3 position;
+layout (location=2) in vec3 normal;
 
 layout (location=4) uniform vec3 light_worldspace;
 
+out vec3 position_worldspace;
 out vec3 normal_cameraspace;
 out vec3 light_direction;
-out float distance;
+out vec3 light_position;
+out vec3 eyedirection_cameraspace;
+out vec4 fragpos_lightspace;
 
 uniform mat4 model;
 uniform mat4 view;
 uniform mat4 projection;
+uniform mat4 lightspace_matrix;
+uniform vec3 light_pos;
 
 void main() {
 	// Output position of the vertex, in clip space : MVP * position
-	gl_Position = projection * view * model * vec4(position_modelspace,1);
+	gl_Position = projection * view * model * vec4(position,1);
 
 	// Position of the vertex, in worldspace : M * position
-	vec3 position_worldspace = (model * vec4(position_modelspace,1)).xyz;
+	position_worldspace = (model * vec4(position,1)).xyz;
 
 	// Vector that goes from the vertex to the camera, in camera space.
  	// In camera space, the camera is at the origin (0,0,0).
-	vec3 position_cameraspace = (view * model * vec4(position_modelspace,1)).xyz;
- 	vec3 eye_direction = vec3(0,0,0) - position_cameraspace;
+	vec3 position_cameraspace = (view * model * vec4(position,1)).xyz;
+ 	eyedirection_cameraspace = vec3(0,0,0) - position_cameraspace;
 
  	// Vector that goes from the vertex to the light, in camera space. M is ommited because it's identity.
  	vec3 light_cameraspace = (view * vec4(light_worldspace,1)).xyz;
- 	light_direction = light_cameraspace + eye_direction;
+ 	light_direction = light_cameraspace + eyedirection_cameraspace;
 
- 	// lumiere fixe
- 	//light_direction = eye_direction;
+ 	vec3 frag_pos = vec3(model * vec4(position,1));
+ 	fragpos_lightspace = lightspace_matrix * vec4(frag_pos,1);
 
  	 // Normal of the the vertex, in camera space
-	normal_cameraspace = (view * model * vec4(normal_modelspace,0)).xyz; 
+	normal_cameraspace = (view * model * vec4(normal,0)).xyz;
 
-	distance = sqrt(
-		(position_modelspace.x-light_worldspace.x)*(position_modelspace.x-light_worldspace.x) +
-		(position_modelspace.y-light_worldspace.y)*(position_modelspace.y-light_worldspace.y) +
-		(position_modelspace.z-light_worldspace.z)*(position_modelspace.z-light_worldspace.z));
+	light_position = light_pos;
 }

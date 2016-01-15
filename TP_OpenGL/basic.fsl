@@ -2,18 +2,60 @@
 
 layout (location=3) uniform vec3 color;
 
+uniform sampler2D shadowMap;
+
 out vec4 color_out;
 
+in vec3 position_worldspace;
 in vec3 normal_cameraspace;
 in vec3 light_direction;
-in float distance;
+in vec3 light_position;
+in vec3 eyedirection_cameraspace;
+in vec4 fragpos_lightspace;
+
+float ShadowCalculation(vec4 fragPosLightSpace, float cosTheta)
+{
+    vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
+    projCoords = projCoords * 0.5 + 0.5;
+    
+    float closestDepth = texture(shadowMap, projCoords.xy).z; 
+    float currentDepth = projCoords.z;
+    
+    float bias = 0.005*tan(acos(cosTheta)); 
+	bias = clamp(bias, 0.0,0.01);
+    
+    float shadow = currentDepth > (closestDepth + bias)  ? 1.0 : 0.0;
+
+    return shadow;
+}  
 
 void main() {
+	vec3 lightColor = vec3(1,1,1);
+	float light_intensity = 100;
+
 	vec3 n = normalize(normal_cameraspace);
 	vec3 l = normalize(light_direction);
+	vec3 r = reflect(-l, n);
+	vec3 e = normalize(eyedirection_cameraspace);
 
-	float cosTheta = clamp(dot(n,l), 0, 1);
+	float dist = distance(position_worldspace, light_position);
 
-	//color_out = vec4(n,1);
-	color_out = 50 * vec4(color * cosTheta, 1) / (distance * distance);
+	float cos_alpha = clamp(dot(e, r), 0, 1);
+	float cosTheta = clamp(dot(-n, l), 0, 1);
+
+	vec4 ambient  = vec4(.05f * vec3(1,1,1), 1);
+	vec4 diffuse  = vec4(color * cosTheta * light_intensity * lightColor / (dist * dist), 1);
+	vec4 specular = vec4(color * pow(cos_alpha, 5) * light_intensity * lightColor / (dist * dist), 1);
+	
+	float shadow = ShadowCalculation(fragpos_lightspace, cosTheta);  
+	
+	vec4 shade = (1-shadow) * diffuse;// * 0.8 + (1-shadow) * specular * 0.2;
+
+	shade.x = pow(shade.x, 1 / 2.2);
+	shade.y = pow(shade.y, 1 / 2.2);
+	shade.z = pow(shade.z, 1 / 2.2);
+
+	color_out = shade;
+	//color_out = 50 * vec4(color * cosTheta, 1) / (distance * distance);
+	//color_out = vec4(n,1);	
 }
